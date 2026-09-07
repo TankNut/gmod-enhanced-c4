@@ -2,6 +2,7 @@ AddCSLuaFile()
 
 local convarMin = GetConVar("c4_enhanced_mintimer")
 local convarDamage = GetConVar("c4_enhanced_damage")
+local convarIgnoreWorld = GetConVar("c4_enhanced_ignore_world")
 
 ENT.Base = "base_anim"
 ENT.Type = "anim"
@@ -28,7 +29,9 @@ PrecacheParticleSystem("high_explosive_main")
 function ENT:Initialize()
 	self:SetModel(self.Model)
 
-	if SERVER then
+	if CLIENT then
+		hook.Add("PostDrawTranslucentRenderables", self, self.DrawDebug)
+	else
 		self:PhysicsInit(SOLID_VPHYSICS)
 		self:SetMoveType(MOVETYPE_NONE)
 
@@ -65,6 +68,22 @@ if CLIENT then
 	})
 
 	local sprite = Material("sprites/redglow1")
+	local developer = GetConVar("developer")
+	local glowColor = Color(151, 12, 12)
+	local debugColor = Color(151, 12, 12, 50)
+
+	function ENT:DrawDebug()
+		if convarIgnoreWorld:GetBool() and developer:GetBool() and game.SinglePlayer() then
+			local pos = self:GetPos()
+			local radius = convarDamage:GetInt() * 3.5
+
+			render.SetColorMaterial()
+
+			render.DrawWireframeSphere(pos, radius, 20, 20, glowColor, true)
+			render.DrawSphere(pos, radius, 20, 20, debugColor, true)
+			render.DrawSphere(pos, -radius, 20, 20, debugColor, true)
+		end
+	end
 
 	function ENT:DrawTranslucent()
 		if self:IsArmed() or CurTime() % 1 <= 0.5 then
@@ -74,7 +93,7 @@ if CLIENT then
 
 				local str = string.format("%s:%02d", os.date("%M:%S", seconds), math.max(ms * 100, 0))
 
-				draw.DrawText(str, "C4.Enhanced.UIWorld", 0, 0, Color(151, 12, 12))
+				draw.DrawText(str, "C4.Enhanced.UIWorld", 0, 0, glowColor)
 			cam.End3D2D()
 		end
 
@@ -117,6 +136,47 @@ else
 		end
 	end
 
+	function ENT:DoRadiusDamage()
+		local damage = convarDamage:GetInt()
+		local radius = damage * 3.5
+
+		local pos = self:GetPos()
+
+		for _, ent in ipairs(ents.FindInSphere(pos, radius)) do
+			if ent == self then continue end
+
+			-- Per CSS: Uses a gaussian function to describe damage falloff over distance
+			-- See: /game/shared/cstrike/cs_gamerules.cpp#L1127-L1146
+			local target = ent:GetPos()
+			local dist = pos:Distance(target)
+			local sigma = radius / 3
+			local falloff = math.exp(-dist * dist / (2 * sigma * sigma))
+
+			local adjustedDamage = damage * falloff
+
+			if adjustedDamage <= 0 then
+				continue
+			end
+
+			local dmg = DamageInfo()
+
+			dmg:SetAttacker(self:GetInstigator())
+			dmg:SetInflictor(self)
+			dmg:SetDamagePosition(self:GetPos())
+
+			local dir = target - pos
+			dir:Normalize()
+
+			local force = math.min(adjustedDamage * 75 * 4, 75 * 400) * math.Rand(0.85, 1.15)
+
+			dmg:SetDamageForce(dir * force)
+			dmg:SetDamageType(DMG_BLAST)
+			dmg:SetDamage(adjustedDamage)
+
+			ent:TakeDamageInfo(dmg)
+		end
+	end
+
 	function ENT:Think()
 		self:NextThink(CurTime())
 
@@ -135,17 +195,21 @@ else
 
 			self:TriggerBombTargets("BombExplode", ply)
 
-			local explo = ents.Create("env_explosion")
+			if convarIgnoreWorld:GetBool() then
+				self:DoRadiusDamage()
+			else
+				local explo = ents.Create("env_explosion")
 
-			explo:SetOwner(ply)
-			explo:SetPos(pos)
-			explo:SetKeyValue("iMagnitude", convarDamage:GetInt())
-			explo:SetKeyValue("spawnflags", 608)
-			explo:Spawn()
-			explo:Activate()
-			explo:Fire("Explode")
+				explo:SetOwner(ply)
+				explo:SetPos(pos)
+				explo:SetKeyValue("iMagnitude", convarDamage:GetInt())
+				explo:SetKeyValue("spawnflags", 608)
+				explo:Spawn()
+				explo:Activate()
+				explo:Fire("Explode")
+			end
 
-			util.ScreenShake(pos, 25, 15, 1, 3000)
+			util.ScreenShake(pos, 25, 150, 1, 3000)
 
 			SafeRemoveEntity(self)
 
