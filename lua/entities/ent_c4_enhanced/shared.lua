@@ -3,6 +3,7 @@ AddCSLuaFile()
 local convarMin = GetConVar("c4_enhanced_mintimer")
 local convarDamage = GetConVar("c4_enhanced_damage")
 local convarIgnoreWorld = GetConVar("c4_enhanced_ignore_world")
+local convarGlobalSounds = GetConVar("c4_enhanced_global_sounds")
 
 ENT.Base = "base_anim"
 ENT.Type = "anim"
@@ -187,7 +188,7 @@ else
 		if self:GetExplodeTimer() <= CurTime() then
 			local pos = self:WorldSpaceCenter()
 
-			self:EmitSound("weapons/c4_enhanced/mine_explosion.mp3", 140)
+			self:EmitSound("weapons/c4_enhanced/mine_explosion.mp3", convarGlobalSounds:GetBool() and 0 or 140)
 
 			ParticleEffect("high_explosive_main", pos, angle_zero)
 
@@ -219,7 +220,7 @@ else
 		local nextBeep = math.Clamp(math.Remap(self:GetExplodeTimer() - CurTime(), 1, 5, 0.1, 1), 0.1, 1)
 
 		if CurTime() - self:GetLastBeep() >= nextBeep then
-			self:EmitSound("weapons/c4_enhanced/c4_click.wav", 80)
+			self:EmitSound("weapons/c4_enhanced/c4_click.wav", convarGlobalSounds:GetBool() and 0 or 80)
 
 			self:SetLastBeep(self:GetLastBeep() + nextBeep)
 		end
