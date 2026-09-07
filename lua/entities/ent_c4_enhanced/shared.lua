@@ -35,6 +35,7 @@ function ENT:Initialize()
 		self:SetUseType(SIMPLE_USE)
 
 		self:SetCollisionGroup(COLLISION_GROUP_WEAPON)
+		self:AddEFlags(EFL_FORCE_CHECK_TRANSMIT)
 	end
 
 	self:SetTimer(convarMin:GetInt())
@@ -97,6 +98,10 @@ if CLIENT then
 	end
 else
 	local useTriggers = GetConVar("c4_enhanced_use_map_triggers")
+
+	function ENT:UpdateTransmitState()
+		return TRANSMIT_ALWAYS
+	end
 
 	function ENT:TriggerBombTargets(key, ply)
 		if not useTriggers:GetBool() then
