@@ -154,6 +154,8 @@ else
 
 			self:SetLastBeep(self:GetLastBeep() + nextBeep)
 		end
+
+		return true
 	end
 
 	function ENT:Use(ply)
